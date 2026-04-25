@@ -1,7 +1,3 @@
-/**
- * GET /api/user/my-products
- * Fetches active products for the logged-in user with time calculations
- */
 const getMyActiveProducts = async (req, res) => {
   const user_id = req.user.user_id;
 
@@ -14,14 +10,14 @@ const getMyActiveProducts = async (req, res) => {
         p.daily_income,
         up.created_at,
         p.duration_days,
-        -- Calculate days passed
+        -- Using created_at based on your screenshot
         (CURRENT_DATE - up.created_at::date) as days_passed,
-        -- Calculate days left
+        -- Calculating days left
         GREATEST(0, p.duration_days - (CURRENT_DATE - up.created_at::date)) as days_left
       FROM user_products up
-      -- THE FIX: Changed p.id to p.product_id
       JOIN products p ON up.product_id = p.product_id 
-      WHERE up.user_id = $1 AND up.status = 'active'
+      -- FIX: Changed to UPPER 'ACTIVE' and used created_at
+      WHERE up.user_id = $1 AND up.status = 'ACTIVE' 
       ORDER BY up.created_at DESC
     `;
 
@@ -29,7 +25,7 @@ const getMyActiveProducts = async (req, res) => {
 
     const formattedData = result.rows.map(item => {
       const daysPassed = parseInt(item.days_passed) || 0;
-      const duration = parseInt(item.duration_days) || 1;
+      const duration = parseInt(item.duration_days) || 30; // Defaulting to 30 based on your image
       const progress = Math.min(100, Math.round((daysPassed / duration) * 100));
       
       return { 
