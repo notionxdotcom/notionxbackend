@@ -7,7 +7,7 @@ const router = express.Router();
 
 
 router.get("/me", getuserbyid);
-router.get("/my-products", getuserbyid);
+router.get("/my-products", getMyActiveProducts);
 
 
 
