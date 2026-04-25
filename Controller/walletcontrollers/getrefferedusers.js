@@ -2,6 +2,7 @@
  * GET /api/user/referrals
  * Returns a list of all users referred by the logged-in user
  */
+import pool from "../../configs/db.js";
 const getMyReferrals = async (req, res) => {
   const { user_id } = req.user; // Extract from your auth middleware
 
