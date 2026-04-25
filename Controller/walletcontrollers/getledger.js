@@ -10,7 +10,7 @@ const getLedger = async (req, res) => {
             return res.status(404).json({ success: false, message: "Wallet not found" });
         }
 
-        const walletId = walletResult.rows[0].id;
+        const walletId = walletResult.rows[0].wallet_id;
 
         // Fetching all entries for the user, newest first
         const query = `
