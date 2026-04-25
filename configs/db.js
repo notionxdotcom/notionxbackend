@@ -1,12 +1,37 @@
-import pkg from "pg";
-import dotenv from "dotenv";
+import { Pool } from "pg";
+import dotenv from 'dotenv';
+
 dotenv.config();
-const { Pool } = pkg;
+
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASS,
-  port: process.env.DB_PORT
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    // This is the critical part for Railway
+    rejectUnauthorized: false,
+  },
+  // Adding a timeout helps catch connection hangs
+  connectionTimeoutMillis: 5000, 
 });
-export default pool;
+
+// Explicit error listener
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
+async function testConnection() {
+  try {
+    const client = await pool.connect();
+    console.log("🚀 Connected to Railway successfully!");
+    const res = await client.query('SELECT NOW()');
+    console.log("📊 Database Time:", res.rows[0].now);
+    client.release();
+  } catch (err) {
+    console.error("❌ Connection failed!");
+    console.error("Reason:", err.message);
+  }
+}
+
+testConnection();
+
+export default pool
