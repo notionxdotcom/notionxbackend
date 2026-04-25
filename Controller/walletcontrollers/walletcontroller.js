@@ -151,7 +151,7 @@ const approveWithdrawal = async (req, res) => {
 
     // 2. FORCE DEBIT
     // Ensure amount is a number. This MUST deduct the FULL 'amount' (100%)
-    const deductionAmount = parseFloat(amount);
+const deductionAmount = Number(amount);
     
     if (isNaN(deductionAmount) || deductionAmount <= 0) {
       throw new Error("Invalid withdrawal amount in database.");
