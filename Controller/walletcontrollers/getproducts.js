@@ -1,38 +1,39 @@
 const getMyActiveProducts = async (req, res) => {
-  // 1. Check if user_id exists
-  const user_id = req.user?.user_id;
-  
+  // 1. FIX THE UUID CRASH: Handle both 'id' and 'user_id' depending on your auth setup
+  const user_id = req.user?.id || req.user?.user_id;
+
   if (!user_id) {
-    console.error("ERROR: No user_id found in request. Check your auth middleware.");
+    console.error("Auth Error: user_id is missing from token.");
     return res.status(401).json({ status: "error", message: "Unauthorized" });
   }
 
   try {
+    // 2. USE YOUR EXACT COLUMNS: We use expires_at, purchase_price, and daily_yield
     const query = `
       SELECT 
         up.id as purchase_id,
         p.name,
-        p.price,
-        p.daily_income,
+        up.purchase_price as price,
+        up.daily_yield as daily_income,
         up.created_at,
         p.duration_days,
-        up.status,
-        -- Safer date subtraction
-        (DATE_PART('day', NOW() - up.created_at))::integer as days_passed
+        -- The safest math possible: Subtracting dates directly returns an integer
+        (up.expires_at::date - CURRENT_DATE) as days_left
       FROM user_products up
       JOIN products p ON up.product_id = p.product_id 
-      WHERE up.user_id = $1
+      WHERE up.user_id = $1 AND up.status = 'ACTIVE'
       ORDER BY up.created_at DESC
     `;
 
     const result = await pool.query(query, [user_id]);
 
     const formattedData = result.rows.map(item => {
-      const daysPassed = item.days_passed || 0;
-      const duration = item.duration_days || 30;
+      // Ensure days left doesn't go below 0 if a plan just expired
+      const daysLeft = Math.max(0, parseInt(item.days_left) || 0);
+      const duration = parseInt(item.duration_days) || 30;
       
-      // Calculate days left and progress percent in JS to avoid SQL errors
-      const daysLeft = Math.max(0, duration - daysPassed);
+      // Calculate progress percentage safely
+      const daysPassed = duration - daysLeft;
       const progress = Math.min(100, Math.round((daysPassed / duration) * 100));
       
       return { 
@@ -43,13 +44,13 @@ const getMyActiveProducts = async (req, res) => {
     });
 
     res.status(200).json({ status: "success", data: formattedData });
-
   } catch (err) {
-    // THIS LOG IS CRITICAL: Check your terminal for this output!
-    console.error("--- SERVER CRASH ERROR ---");
-    console.error(err.message); 
+    // 3. LOG THE EXACT ERROR: If it fails again, this tells us exactly why
+    console.error("--- DB CRASH ---", err.message);
     res.status(500).json({ status: "error", message: err.message });
   }
 };
+
+
 
 export default getMyActiveProducts;
