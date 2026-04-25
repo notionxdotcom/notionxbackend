@@ -45,7 +45,7 @@ async function createusercontroller(req,res) {
             if (inviter.rows.length > 0) {
                 referredById = inviter.rows[0].user_id;
             }
-            // Optional: return error if referral code is invalid, or just ignore it
+           res.status(500).json({message:"invalid Refferal"})
         }
 
         // 3. Generate New Unique Referral Code for the new user
