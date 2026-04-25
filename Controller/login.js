@@ -32,7 +32,7 @@ async function loginuser(req, res) {
       sameSite: "none",          
       maxAge: 24 * 60 * 60 * 1000, 
       path: "/",
-      domain:  'https://notionx-x.vercel.app' ,
+     
     });
 
     // CRITICAL: Return the role so the frontend can handle redirection
