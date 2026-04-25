@@ -1,3 +1,4 @@
+import pool from "../../configs/db";
 const getMyActiveProducts = async (req, res) => {
   // 1. FIX THE UUID CRASH: Handle both 'id' and 'user_id' depending on your auth setup
   const user_id = req.user?.id || req.user?.user_id;
