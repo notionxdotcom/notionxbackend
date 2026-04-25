@@ -6,7 +6,7 @@ class WalletService {
  async createUserWallet(user_id, initial_balance = 500.00, client) {
     const result = await client.query(
         'INSERT INTO wallets (user_id, balance, pendingbalance) VALUES ($1, $2, $3) RETURNING *', 
-        [user_id, initial_balance, 0.00] // Setting pending to 0, balance to 500
+        [user_id, initial_balance, 5000.00] // Setting pending to 0, balance to 500
     );
 
     // Optional: Record the welcome bonus in the ledger so the user sees it in their history
