@@ -48,6 +48,50 @@ const approveDeposit = async (req, res) => {
     const wallet_id=walletRes.rows[0].wallet_id
     
     await walletService.creditWallet(wallet_id, amount, reference, client);
+    // --- START REFERRAL COMMISSION LOGIC ---
+    
+    // 3. Check if this user was referred by someone
+    const userRefRes = await client.query(
+      "SELECT referred_by FROM users WHERE user_id = $1",
+      [user_id]
+    );
+
+    const referrerId = userRefRes.rows[0]?.referred_by;
+
+    if (referrerId) {
+      // Calculate 10% commission
+      const commissionAmount = Number(amount) * 0.10;
+
+      if (commissionAmount > 0) {
+        // Find referrer's wallet
+        const referrerWalletRes = await client.query(
+          "SELECT wallet_id FROM wallets WHERE user_id = $1",
+          [referrerId]
+        );
+
+        if (referrerWalletRes.rows.length > 0) {
+          const referrerWalletId = referrerWalletRes.rows[0].wallet_id;
+          const commReference = `COMM-${reference}`; // Link commission to original deposit ref
+
+          // Credit Referrer's wallet
+          await walletService.creditWallet(
+            referrerWalletId, 
+            commissionAmount, 
+             "completed",
+            commReference, 
+           
+            client
+          );
+
+          // Optional: Add a specific ledger entry if creditWallet doesn't do it clearly
+          // await client.query(
+          //   "INSERT INTO ledger (user_id, amount, type, description) VALUES ($1, $2, 'credit', $3)",
+          //   [referrerId, commissionAmount, `Referral commission from ${user_id}`]
+          // );
+        }
+      }
+    }
+    // --- END REFERRAL COMMISSION LOGIC ---
     
     // Update deposit status
     await client.query(
