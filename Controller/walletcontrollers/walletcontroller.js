@@ -77,11 +77,17 @@ const approveDeposit = async (req, res) => {
  */
 const requestWithdrawal = async (req, res) => {
   const user_id = req.user.user_id; 
-  const { amount } = req.body;
+  // amount = Total Deduction (e.g. 11500)
+  // net_amount = What they actually get (e.g. 10000)
+  const { amount, net_amount, fee } = req.body; 
+
+  const client = await pool.connect();
 
   try {
-    // 1. Check if user has a product (Business Rule)
-    const products = await pool.query(
+    await client.query("BEGIN");
+
+    // 1. Business Rule: Check if user has a product
+    const products = await client.query(
       "SELECT 1 FROM user_products WHERE user_id = $1 LIMIT 1",
       [user_id]
     );
@@ -89,73 +95,51 @@ const requestWithdrawal = async (req, res) => {
         throw new Error("You must purchase a product before you can withdraw.");
     }
 
-    // 2. Check if they actually have enough balance right now
-    const wallet = await pool.query(
-      "SELECT wallet_id, balance FROM wallets WHERE user_id = $1",
-      [user_id]
-    );
-    
-    if (wallet.rows.length === 0) throw new Error("Wallet not found.");
-    
-    const wallet_id = wallet.rows[0].wallet_id;
-    const currentBalance = parseFloat(wallet.rows[0].balance);
-
-    if (currentBalance < amount) {
-        throw new Error("Insufficient funds for this withdrawal.");
-    }
-
     const reference = `WD-${Date.now()}`;
 
-    // 3. Just insert the request as PENDING. (No debiting here as per your request)
-    await pool.query(
-      "INSERT INTO withdrawals (user_id, wallet_id, status, reference_id, amount) VALUES ($1, $2, $3, $4, $5)",
-      [user_id, wallet_id, 'pending', reference, amount]
+    // 2. DEBIT WALLET IMMEDIATELY 
+    // This prevents the user from "double spending" while the request is pending.
+    // If they have 11,000 but try to withdraw 10,000 (+1,500 fee), this will throw an error.
+    await walletService.debitWallet(user_id, amount, "withdrawal", reference, client);
+
+    // 3. Insert into withdrawals table with fee breakdown
+    await client.query(
+      `INSERT INTO withdrawals 
+       (user_id, amount, net_amount, fee, status, reference_id) 
+       VALUES ($1, $2, $3, $4, 'pending', $5)`,
+      [user_id, amount, net_amount, fee, reference]
     );
 
-    res.status(201).json({ status: "success", message: "Withdrawal request submitted for approval." });
+    await client.query("COMMIT");
+    res.status(201).json({ status: "success", message: "Withdrawal submitted. ₦" + amount + " deducted from balance." });
+
   } catch (err) {
+    await client.query("ROLLBACK");
     res.status(400).json({ status: "error", message: err.message });
+  } finally {
+    client.release();
   }
 };
 
 /**
  * 2. Admin approves withdrawal
- * LOGIC: This is where the DEBIT actually happens.
  */
 const approveWithdrawal = async (req, res) => {
   const { withdrawalId } = req.params;
-  const client = await pool.connect();
 
   try {
-    await client.query("BEGIN");
-
-    // 1. Lock the withdrawal record and check if it's still pending
-    const wdRes = await client.query(
-      "SELECT * FROM withdrawals WHERE id = $1 AND status = 'pending' FOR UPDATE",
+    // Logic: Money was already debited during 'request', 
+    // so we just mark the status as 'completed'.
+    const result = await pool.query(
+      "UPDATE withdrawals SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING *",
       [withdrawalId]
     );
 
-    if (wdRes.rows.length === 0) throw new Error("Withdrawal not found or already processed.");
+    if (result.rows.length === 0) throw new Error("Withdrawal not found or already processed.");
 
-    const { user_id, amount, reference_id } = wdRes.rows[0];
-
-    // 2. PERFORM THE DEBIT NOW
-    // This will throw an error if the user spent the money between the request and now
-    await walletService.debitWallet(user_id, amount, "withdrawal", reference_id, client);
-
-    // 3. Mark as completed
-    await client.query(
-      "UPDATE withdrawals SET status = 'completed', updated_at = NOW() WHERE id = $1",
-      [withdrawalId]
-    );
-
-    await client.query("COMMIT");
-    res.json({ status: "success", message: "Withdrawal approved and funds debited." });
+    res.json({ status: "success", message: "Withdrawal marked as completed." });
   } catch (err) {
-    await client.query("ROLLBACK");
     res.status(500).json({ status: "error", message: err.message });
-  } finally {
-    client.release();
   }
 };
 
