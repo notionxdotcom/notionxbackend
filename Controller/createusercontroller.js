@@ -21,7 +21,7 @@ async function generateUniqueReferralCode(client) {
     return code;
 }
 
-async function createusercontroller(req,res) {
+async function createusercontroller(req, res) {
     const { value, error } = validation_schema.validate(req.body);
     if (error) {
         return res.status(400).json({ message: error.details[0].message });
@@ -31,29 +31,36 @@ async function createusercontroller(req,res) {
     try {
         await client.query("BEGIN");
 
-        // 1. Check if user already exists (Phone Number is usually the primary key in these apps)
+        // 1. Check if user already exists
         const checkUser = await client.query("SELECT * FROM users WHERE phone_number = $1", [value.phoneNumber]);
         if (checkUser.rows.length > 0) {
             await client.query("ROLLBACK");
             return res.status(409).json({ message: "User with this phone number already exists" });
         }
 
-        // 2. Handle "Referred By" logic
+        // 2. Handle "Referred By" logic (FIXED)
         let referredById = null;
         if (value.referralCode) {
-            const inviter = await client.query("SELECT id FROM users WHERE referral_code = $1", [value.referralCode]);
+            // Select user_id (or id) to match your schema
+            const inviter = await client.query("SELECT user_id FROM users WHERE referral_code = $1", [value.referralCode]);
+            
             if (inviter.rows.length > 0) {
                 referredById = inviter.rows[0].user_id;
+            } else {
+                // If the code is invalid, we rollback and stop
+                await client.query("ROLLBACK");
+                return res.status(400).json({ message: "Invalid Referral Code" });
             }
-           res.status(500).json({message:"invalid Refferal"})
         }
 
-        // 3. Generate New Unique Referral Code for the new user
+        // 3. Generate New Unique Referral Code
         const newUserReferralCode = await generateUniqueReferralCode(client);
 
         // 4. Hash Password
         const passwordsalt = await bcrypt.genSalt(10);
         const hashedpassword = await bcrypt.hash(value.password, passwordsalt);
+        
+        // 5. Create User
         const userservice = new User();
         const createuser = await userservice.createuser(
             value.phoneNumber, 
@@ -63,14 +70,15 @@ async function createusercontroller(req,res) {
             client
         );
 
-        // 6. Create Wallet
+        // 6. Create Wallet (Set initial bonus here if needed, e.g., 500.00)
         const createwalletservice = new WalletService();
         const user_id = createuser.user_id;
-        await createwalletservice.createUserWallet(user_id, 0.00, client);
+        
+        // Use 500.00 instead of 0.00 if you want to give the signup bonus!
+        await createwalletservice.createUserWallet(user_id, 500.00, client);
 
         await client.query("COMMIT");
         
-        // Remove password from response
         delete createuser.password; 
         
         return res.status(201).json({
