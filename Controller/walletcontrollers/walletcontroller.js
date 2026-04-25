@@ -52,7 +52,7 @@ const approveDeposit = async (req, res) => {
     
     // 3. Check if this user was referred by someone
     const userRefRes = await client.query(
-      "SELECT referred_by FROM users WHERE user_id = $1",
+      "SELECT referred_by_id FROM users WHERE user_id = $1",
       [user_id]
     );
 
