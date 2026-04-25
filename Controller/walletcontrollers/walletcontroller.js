@@ -75,38 +75,58 @@ const approveDeposit = async (req, res) => {
 /**
  * 3. User requests withdrawal
  */
+
+/**
+ * 2. Admin approves withdrawal
+ * LOGIC: This is where the DEBIT actually happens.
+ */
 const requestWithdrawal = async (req, res) => {
   const user_id = req.user.user_id; 
   const { amount, net_amount, fee } = req.body; 
 
   try {
-    // Check if user has a product
+    // 1. Business Rule: Check if user has a product
     const products = await pool.query("SELECT 1 FROM user_products WHERE user_id = $1 LIMIT 1", [user_id]);
-    if (products.rows.length === 0) throw new Error("Product purchase required.");
+    if (products.rows.length === 0) {
+        throw new Error("You must purchase a product before you can withdraw.");
+    }
 
-    // Simple balance check (pre-validation)
+    // 2. MATH VALIDATION (Security)
+    // We round to 2 decimal places to prevent floating point errors (e.g., 0.000000001)
+    const expectedFee = Math.round((amount * 0.20) * 100) / 100;
+    const expectedNet = Math.round((amount - expectedFee) * 100) / 100;
+
+    // Check if the frontend math matches the backend math
+    if (Math.abs(net_amount - expectedNet) > 0.1) {
+        throw new Error("Calculation mismatch. Please refresh and try again.");
+    }
+
+    // 3. Pre-check Balance
     const wallet = await pool.query("SELECT balance FROM wallets WHERE user_id = $1", [user_id]);
+    if (wallet.rows.length === 0) throw new Error("Wallet not found.");
+    
     if (parseFloat(wallet.rows[0].balance) < amount) {
         throw new Error("Insufficient funds in wallet.");
     }
 
     const reference = `WD-${Date.now()}`;
 
-    // INSERT RECORD ONLY - STATUS PENDING
+    // 4. INSERT RECORD AS PENDING
     await pool.query(
       `INSERT INTO withdrawals (user_id, amount, net_amount, fee, status, reference_id) 
        VALUES ($1, $2, $3, $4, 'pending', $5)`,
       [user_id, amount, net_amount, fee, reference]
     );
 
-    res.status(201).json({ status: "success", message: "Withdrawal request submitted." });
+    res.status(201).json({ status: "success", message: "Withdrawal request submitted for approval." });
   } catch (err) {
     res.status(400).json({ status: "error", message: err.message });
   }
 };
+
 /**
  * 2. Admin approves withdrawal
- * LOGIC: This is where the DEBIT actually happens.
+ * Math Fix: Debits the FULL 'amount' (Total Deduction)
  */
 const approveWithdrawal = async (req, res) => {
   const { withdrawalId } = req.params;
@@ -115,36 +135,51 @@ const approveWithdrawal = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // 1. Lock the withdrawal record and check if it's still pending
+    // 1. Get the withdrawal record and LOCK it
     const wdRes = await client.query(
       "SELECT * FROM withdrawals WHERE id = $1 AND status = 'pending' FOR UPDATE",
       [withdrawalId]
     );
 
-    if (wdRes.rows.length === 0) throw new Error("Withdrawal not found or already processed.");
+    if (wdRes.rows.length === 0) {
+      throw new Error("Withdrawal not found or already processed.");
+    }
 
+    // amount = The total deduction (e.g., 1000)
+    // net_amount = What the user gets (e.g., 800)
     const { user_id, amount, reference_id } = wdRes.rows[0];
 
-    // 2. PERFORM THE DEBIT NOW
-    // This will throw an error if the user spent the money between the request and now
-    await walletService.debitWallet(user_id, amount, "withdrawal", reference_id, client);
+    // 2. FORCE DEBIT
+    // Ensure amount is a number. This MUST deduct the FULL 'amount' (100%)
+    const deductionAmount = parseFloat(amount);
+    
+    if (isNaN(deductionAmount) || deductionAmount <= 0) {
+      throw new Error("Invalid withdrawal amount in database.");
+    }
 
-    // 3. Mark as completed
+    // Call your wallet service to perform the subtraction in the DB
+    await walletService.debitWallet(user_id, deductionAmount, "Withdrawal", reference_id, client);
+
+    // 3. Update the withdrawal status to completed
     await client.query(
       "UPDATE withdrawals SET status = 'completed', updated_at = NOW() WHERE id = $1",
       [withdrawalId]
     );
 
     await client.query("COMMIT");
-    res.json({ status: "success", message: "Withdrawal approved and funds debited." });
+    res.json({ 
+      status: "success", 
+      message: `Approved. ₦${deductionAmount} debited from wallet.` 
+    });
+
   } catch (err) {
     await client.query("ROLLBACK");
+    console.error("Approval Error:", err.message);
     res.status(500).json({ status: "error", message: err.message });
   } finally {
     client.release();
   }
 };
-
 /**
  * 3. Admin rejects withdrawal
  * LOGIC: Since no money was taken during the request, we just flip the status.
