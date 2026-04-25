@@ -56,7 +56,7 @@ const approveDeposit = async (req, res) => {
       [user_id]
     );
 
-    const referrerId = userRefRes.rows[0]?.referred_by;
+    const referrerId = userRefRes.rows[0]?.referred_by_id;
 
     if (referrerId) {
       // Calculate 10% commission
