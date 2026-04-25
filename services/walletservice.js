@@ -3,13 +3,22 @@ class WalletService {
     /**
      * Creates a new wallet for a user
      */
-    async createUserWallet(user_id, initial_balance = 500.00, client) {
-        const result = await client.query(
-            'INSERT INTO wallets (user_id, balance, pendingbalance) VALUES ($1, $2, $3) RETURNING *', 
-            [user_id, initial_balance, 0.00]
-        );
-        return result.rows[0]; 
-    }
+ async createUserWallet(user_id, initial_balance = 500.00, client) {
+    const result = await client.query(
+        'INSERT INTO wallets (user_id, balance, pendingbalance) VALUES ($1, $2, $3) RETURNING *', 
+        [user_id, initial_balance, 0.00] // Setting pending to 0, balance to 500
+    );
+
+    // Optional: Record the welcome bonus in the ledger so the user sees it in their history
+    const wallet = result.rows[0];
+    await client.query(
+        `INSERT INTO ledger (wallet_id, amount, entry_type, status, description)
+         VALUES ($1, $2, 'bonus', 'completed', 'Welcome Bonus')`,
+        [wallet.wallet_id, initial_balance]
+    );
+
+    return wallet; 
+}
 
     /**
      * Credits the wallet (used for Deposits and Refunds)
