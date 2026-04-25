@@ -158,7 +158,7 @@ const deductionAmount = Number(amount);
     }
 
     // Call your wallet service to perform the subtraction in the DB
-    await walletService.debitWallet(user_id, deductionAmount, "Withdrawal", reference_id, client);
+    await walletService.debitWallet(user_id, deductionAmount, "withdrawal", reference_id, client);
 
     // 3. Update the withdrawal status to completed
     await client.query(
