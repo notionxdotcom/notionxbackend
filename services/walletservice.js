@@ -51,9 +51,11 @@ class WalletService {
             "SELECT wallet_id, balance FROM wallets WHERE user_id = $1 FOR UPDATE",
             [user_id]
         );
+        if (wallet.rows.length === 0) {
+            throw new Error(`Wallet not found for user ${user_id}. Manual admin users need a wallet created in the wallets table.`);
+        }
         const wallet_id = wallet.rows[0].wallet_id;
-        if (wallet.rows.length === 0) throw new Error("Wallet record not found.");
-
+        
         const currentBalance = parseFloat(wallet.rows[0].balance);
         const debitAmount = parseFloat(amount);
 
@@ -86,7 +88,7 @@ class WalletService {
      */
     async getBalance(user_id, client) {
         const result = await client.query(
-            "SELECT balance, pending_balance FROM wallets WHERE user_id = $1", 
+            "SELECT balance, pendingbalance FROM wallets WHERE user_id = $1", 
             [user_id]
         );
         if (result.rows.length === 0) throw new Error("Wallet not found.");
