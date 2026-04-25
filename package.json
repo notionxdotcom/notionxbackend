@@ -26,6 +26,6 @@
   }
   ,
   "scripts": {
-  "start": "node seedadmin.js"
+  "start": "node server.js"
 }
 }
