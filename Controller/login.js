@@ -26,14 +26,14 @@ async function loginuser(req, res) {
     const token = Generatetoken(user);
   
     // Cookie settings for local development
-    res.cookie("token", token, {
-      httpOnly: true,              
-      secure: true, 
-      sameSite: "none",          
-      maxAge: 24 * 60 * 60 * 1000, 
-      path: "/",
+    // res.cookie("token", token, {
+    //   httpOnly: true,              
+    //   secure: true, 
+    //   sameSite: "none",          
+    //   maxAge: 24 * 60 * 60 * 1000, 
+    //   path: "/",
      
-    });
+    // });
 
     // CRITICAL: Return the role so the frontend can handle redirection
     return res.status(200).json({
