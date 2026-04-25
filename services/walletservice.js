@@ -13,7 +13,7 @@ class WalletService {
     const wallet = result.rows[0];
     await client.query(
         `INSERT INTO ledger (wallet_id, amount, entry_type, status, description)
-         VALUES ($1, $2, 'bonus', 'completed', 'Welcome Bonus')`,
+         VALUES ($1, $2, 'bonus', 'completed', 'welcomebonus')`,
         [wallet.wallet_id, initial_balance]
     );
 
