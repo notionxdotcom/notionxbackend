@@ -79,46 +79,29 @@ const requestWithdrawal = async (req, res) => {
   const user_id = req.user.user_id; 
   const { amount, net_amount, fee } = req.body; 
 
-  const client = await pool.connect();
-
   try {
-    await client.query("BEGIN");
-
-    // 1. Validation
-    const products = await client.query("SELECT 1 FROM user_products WHERE user_id = $1 LIMIT 1", [user_id]);
+    // Check if user has a product
+    const products = await pool.query("SELECT 1 FROM user_products WHERE user_id = $1 LIMIT 1", [user_id]);
     if (products.rows.length === 0) throw new Error("Product purchase required.");
 
-    // 2. FIXED SECURITY CHECK:
-    // We round to 2 decimal places to match the frontend precisely
-    const expectedFee = Math.round((amount * 0.20) * 100) / 100;
-    
-    // Check if the difference is more than 1 cent/kobo
-    if (Math.abs(fee - expectedFee) > 0.01) {
-        console.log(`Math Mismatch: Received ${fee}, Expected ${expectedFee}`);
-        throw new Error("Invalid calculation. Please try a different amount.");
+    // Simple balance check (pre-validation)
+    const wallet = await pool.query("SELECT balance FROM wallets WHERE user_id = $1", [user_id]);
+    if (parseFloat(wallet.rows[0].balance) < amount) {
+        throw new Error("Insufficient funds in wallet.");
     }
 
     const reference = `WD-${Date.now()}`;
 
-    // 3. DEBIT THE FULL AMOUNT
-    // If user enters 1000, 1000 is taken.
-    await walletService.debitWallet(user_id, amount, "withdrawal", reference, client);
-
-    // 4. Record
-    await client.query(
+    // INSERT RECORD ONLY - STATUS PENDING
+    await pool.query(
       `INSERT INTO withdrawals (user_id, amount, net_amount, fee, status, reference_id) 
        VALUES ($1, $2, $3, $4, 'pending', $5)`,
       [user_id, amount, net_amount, fee, reference]
     );
 
-    await client.query("COMMIT");
-    res.status(201).json({ status: "success", message: "Request received." });
-
+    res.status(201).json({ status: "success", message: "Withdrawal request submitted." });
   } catch (err) {
-    await client.query("ROLLBACK");
     res.status(400).json({ status: "error", message: err.message });
-  } finally {
-    client.release();
   }
 };
 /**
