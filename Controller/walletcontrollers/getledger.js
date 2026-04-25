@@ -2,7 +2,7 @@
 import pool from "../../configs/db.js";
 const getLedger = async (req, res) => {
     try {
-        const userId = req.user.id; // From your auth middleware
+        const userId = req.user.user_id; // From your auth middleware
         const walletQuery = 'SELECT wallet_id FROM wallets WHERE user_id = $1';
         const walletResult = await pool.query(walletQuery, [userId]);
 
