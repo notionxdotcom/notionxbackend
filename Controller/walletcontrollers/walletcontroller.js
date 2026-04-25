@@ -75,7 +75,7 @@ const approveDeposit = async (req, res) => {
 /**
  * 3. User requests withdrawal
  */
-export const requestWithdrawal = async (req, res) => {
+const requestWithdrawal = async (req, res) => {
   const user_id = req.user.user_id; 
   const { amount, net_amount, fee } = req.body; 
 
@@ -110,6 +110,46 @@ export const requestWithdrawal = async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     res.status(400).json({ status: "error", message: err.message });
+  } finally {
+    client.release();
+  }
+};
+/**
+ * 2. Admin approves withdrawal
+ * LOGIC: This is where the DEBIT actually happens.
+ */
+const approveWithdrawal = async (req, res) => {
+  const { withdrawalId } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 1. Lock the withdrawal record and check if it's still pending
+    const wdRes = await client.query(
+      "SELECT * FROM withdrawals WHERE id = $1 AND status = 'pending' FOR UPDATE",
+      [withdrawalId]
+    );
+
+    if (wdRes.rows.length === 0) throw new Error("Withdrawal not found or already processed.");
+
+    const { user_id, amount, reference_id } = wdRes.rows[0];
+
+    // 2. PERFORM THE DEBIT NOW
+    // This will throw an error if the user spent the money between the request and now
+    await walletService.debitWallet(user_id, amount, "withdrawal", reference_id, client);
+
+    // 3. Mark as completed
+    await client.query(
+      "UPDATE withdrawals SET status = 'completed', updated_at = NOW() WHERE id = $1",
+      [withdrawalId]
+    );
+
+    await client.query("COMMIT");
+    res.json({ status: "success", message: "Withdrawal approved and funds debited." });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    res.status(500).json({ status: "error", message: err.message });
   } finally {
     client.release();
   }
