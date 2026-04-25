@@ -43,7 +43,7 @@ async function createusercontroller(req,res) {
         if (value.referralCode) {
             const inviter = await client.query("SELECT id FROM users WHERE referral_code = $1", [value.referralCode]);
             if (inviter.rows.length > 0) {
-                referredById = inviter.rows[0].id;
+                referredById = inviter.rows[0].user_id;
             }
             // Optional: return error if referral code is invalid, or just ignore it
         }
