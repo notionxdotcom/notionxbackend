@@ -84,20 +84,27 @@ const requestWithdrawal = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Check for product purchase
+    // 1. Validation
     const products = await client.query("SELECT 1 FROM user_products WHERE user_id = $1 LIMIT 1", [user_id]);
-    if (products.rows.length === 0) throw new Error("Product purchase required to withdraw.");
+    if (products.rows.length === 0) throw new Error("Product purchase required.");
 
-    // Validate math to prevent tampering
-    const expectedFee = amount * 0.20;
-    if (Math.abs(fee - expectedFee) > 1) throw new Error("Invalid fee calculation.");
+    // 2. FIXED SECURITY CHECK:
+    // We round to 2 decimal places to match the frontend precisely
+    const expectedFee = Math.round((amount * 0.20) * 100) / 100;
+    
+    // Check if the difference is more than 1 cent/kobo
+    if (Math.abs(fee - expectedFee) > 0.01) {
+        console.log(`Math Mismatch: Received ${fee}, Expected ${expectedFee}`);
+        throw new Error("Invalid calculation. Please try a different amount.");
+    }
 
     const reference = `WD-${Date.now()}`;
 
-    // DEBIT THE FULL AMOUNT IMMEDIATELY
+    // 3. DEBIT THE FULL AMOUNT
+    // If user enters 1000, 1000 is taken.
     await walletService.debitWallet(user_id, amount, "withdrawal", reference, client);
 
-    // Save with breakdown
+    // 4. Record
     await client.query(
       `INSERT INTO withdrawals (user_id, amount, net_amount, fee, status, reference_id) 
        VALUES ($1, $2, $3, $4, 'pending', $5)`,
