@@ -14,7 +14,7 @@ class WalletService {
     /**
      * Credits the wallet (used for Deposits and Refunds)
      */
-    async creditWallet(wallet_id, amount, status,  reference, client) {
+    async creditWallet(wallet_id, amount,entry_type,status, reference, client) {
         // Lock the row to prevent race conditions
         const wallet = await client.query(
             "SELECT balance FROM wallets WHERE wallet_id = $1 FOR UPDATE",
@@ -35,8 +35,8 @@ class WalletService {
         // Record in Ledger
         await client.query(
             `INSERT INTO ledger (wallet_id, amount, entry_type, status, description)
-             VALUES ($1, $2, 'deposit', $3, $4)`,
-            [wallet_id, amount, status, reference]
+             VALUES ($1, $2, $3, $4, $5)`,
+            [wallet_id, amount,entry_type,status, reference]
         );
 
         return newBalance;

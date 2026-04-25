@@ -47,7 +47,7 @@ const approveDeposit = async (req, res) => {
     );
     const wallet_id=walletRes.rows[0].wallet_id
     
-    await walletService.creditWallet(wallet_id, amount,"referral_commission", reference, client);
+    await walletService.creditWallet(wallet_id, amount,"deposit","completed", reference, client);
     // --- START REFERRAL COMMISSION LOGIC ---
     
     // 3. Check if this user was referred by someone
@@ -77,6 +77,7 @@ const approveDeposit = async (req, res) => {
           await walletService.creditWallet(
             referrerWalletId, 
             commissionAmount, 
+            "referral_commission",
              "completed",
             commReference, 
            
