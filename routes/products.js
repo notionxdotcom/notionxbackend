@@ -1,7 +1,7 @@
 import express from 'express';
 import pool from '../configs/db.js';
 import WalletService from '../services/walletservice.js';
-import getMyReferrals from '../Controller/walletcontrollers/getrefferedusers.js';
+
 const router = express.Router();
 const walletService = new WalletService();
 // Create a new VIP Plan
@@ -96,7 +96,7 @@ router.post('/buy-product', async (req, res) => {
     client.release();
   }
 });
-router.get('/my-referrals', getMyReferrals);
+
 
 
 export default router;
