@@ -3,7 +3,7 @@ class WalletService {
     /**
      * Creates a new wallet for a user
      */
-    async createUserWallet(user_id, initial_balance = 0.00, client) {
+    async createUserWallet(user_id, initial_balance = 500.00, client) {
         const result = await client.query(
             'INSERT INTO wallets (user_id, balance, pendingbalance) VALUES ($1, $2, $3) RETURNING *', 
             [user_id, initial_balance, 0.00]
