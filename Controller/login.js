@@ -40,7 +40,7 @@ async function loginuser(req, res) {
       token: token, // Also return token in body if your interceptor uses it
       user: {
         user_id: user.user_id,
-        name: user.full_name, // Fixed: usually full_name in your DB
+        
         phone: user.phone_number,
         role: user.role // This allows React to do: if(user.role === 'admin') navigate('/admin')
       }
