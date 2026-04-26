@@ -31,6 +31,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(helmet());
 app.use(morgan("dev"));
+startPayoutEngine();
 
 // 3. DEBUG MIDDLEWARE: Put this exactly here to see what's happening
 app.use((req, res, next) => {
