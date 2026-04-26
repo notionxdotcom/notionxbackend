@@ -1,6 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import "./tasks/payout.js"
+import startPayoutEngine from './tasks/payout.js';
 dotenv.config();
 import cors from 'cors';
 import helmet from "helmet";
