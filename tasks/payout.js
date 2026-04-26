@@ -39,7 +39,7 @@ const startPayoutEngine = () => {
             updated_at = NOW()
           FROM eligible_payouts e
           WHERE w.user_id = e.user_id
-          RETURNING e.user_id, e.daily_yield, e.product_id, w.id as wallet_id, e.status
+          RETURNING e.user_id, e.daily_yield, e.product_id, w.wallet_id as wallet_id, e.status
         )
         INSERT INTO ledger (wallet_id, amount, entry_type, status, description, created_at)
         SELECT 
