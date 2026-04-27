@@ -29,10 +29,10 @@ router.post('/initiate-deposit', async (req, res) => {
     const result = await pool.query(
       `INSERT INTO ledger (wallet_id, amount, entry_type, status, description) 
        VALUES ((SELECT id FROM wallets WHERE user_id = $1), $2, 'deposit', 'pending', 'Awaiting bank transfer confirmation') 
-       RETURNING id`,
+       RETURNING ledger_id`,
       [req.user.user_id, amount]
     );
-    res.json({ transactionId: result.rows[0].id });
+    res.json({ transactionId: result.rows[0].ledger_id });
   } catch (err) {
     res.status(500).send("Server Error");
   }
