@@ -452,8 +452,8 @@ const getWithdrawals = async (req, res) => {
        FROM ledger l
        JOIN wallets w ON l.wallet_id = w.wallet_id
        WHERE w.user_id = $1 
-       AND l.status = 'pending' 
-       AND l.entry_type = 'deposit'
+AND l.status IN ('pending', 'processing') 
+AND l.entry_type = 'deposit'
        LIMIT 1`,
       [userId]
     );
