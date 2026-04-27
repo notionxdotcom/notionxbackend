@@ -260,37 +260,36 @@ const rejectWithdrawal = async (req, res) => {
  * Retrieves all pending deposits with pagination
  */
 const getPendingDeposits = async (req, res) => {
-  // Get page and limit from query params, set defaults
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
 
   try {
-    // 1. Get total count for frontend pagination controls
+    // 1. Count total pending/processing items in the ledger
     const countRes = await pool.query(
-      "SELECT COUNT(*) FROM deposits WHERE status = 'pending'"
+      "SELECT COUNT(*) FROM ledger WHERE status IN ('pending', 'processing') AND entry_type = 'deposit'"
     );
     const totalItems = parseInt(countRes.rows[0].count);
     const totalPages = Math.ceil(totalItems / limit);
 
-    // 2. Fetch paginated data with User details (Join)
-    // We join with the users table to show the name/email of the person who deposited
-    // Change the JOIN condition
-const depositsRes = await pool.query(
-  `SELECT 
-    d.id, 
-    d.amount, 
-    d.reference, 
-    d.status, 
-    d.created_at, 
-    u.phone_number 
-   FROM deposits d
-   JOIN users u ON d.user_id = u.user_id  -- FIXED: Join deposit's user_id to user's id
-   WHERE d.status = 'pending'
-   ORDER BY d.created_at DESC
-   LIMIT $1 OFFSET $2`,
-  [limit, offset]
-);
+    // 2. Fetch data: mapping 'description' to 'reference' for the frontend
+    const depositsRes = await pool.query(
+      `SELECT 
+        l.ledger_id, 
+        l.amount, 
+        l.description AS reference, 
+        l.status, 
+        l.created_at, 
+        u.phone AS phone_number 
+       FROM ledger l
+       JOIN wallets w ON l.wallet_id = w.ledger_id
+       JOIN users u ON w.user_id = u.user_id
+       WHERE l.status IN ('pending', 'processing') 
+       AND l.entry_type = 'deposit'
+       ORDER BY l.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
 
     res.status(200).json({
       status: "success",
