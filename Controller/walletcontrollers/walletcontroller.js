@@ -447,23 +447,32 @@ const getWithdrawals = async (req, res) => {
   try {
     const userId = req.user.user_id;
 
+    // Use LOWER() to make the check case-insensitive 
+    // and ORDER BY created_at DESC to get the latest one
     const result = await pool.query(
       `SELECT l.ledger_id, l.amount, l.description, l.status
        FROM ledger l
        JOIN wallets w ON l.wallet_id = w.wallet_id
        WHERE w.user_id = $1 
-AND l.status IN ('pending', 'processing') 
-AND l.entry_type = 'deposit'
+       AND LOWER(l.status) IN ('pending', 'processing') 
+       AND l.entry_type = 'deposit'
+       ORDER BY l.created_at DESC 
        LIMIT 1`,
       [userId]
     );
 
     if (result.rows.length > 0) {
-      return res.json({ active: true, deposit: result.rows[0] });
+      // We return 'active: true' so the "Recharge" page can block new ones
+      // but the 'status' inside 'deposit' will tell the Dashboard whether to show the banner
+      return res.json({ 
+        active: true, 
+        deposit: result.rows[0] 
+      });
     }
     
     res.json({ active: false });
   } catch (err) {
+    console.error("Backend Error:", err);
     res.status(500).json({ message: "Error fetching active deposit" });
   }
 };
