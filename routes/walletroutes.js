@@ -23,7 +23,7 @@ router.post("/addbankdetails", addBankDetails);
 router.get("/my-bank-details", getMyBankDetails);
 router.get("/withdrawals", getWithdrawals);
 // POST /api/wallet/initialize-deposit
-router.post('/initialize-deposit', authMiddleware, async (req, res) => {
+router.post('/initialize-deposit',  async (req, res) => {
   const { amount } = req.body;
   const userId = req.user.id;
   
