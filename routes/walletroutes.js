@@ -49,7 +49,7 @@ router.post('/initialize-deposit',  async (req, res) => {
 });
 
 // POST /api/wallet/request-approval
-router.post('/request-approval', authMiddleware, async (req, res) => {
+router.post('/request-approval',  async (req, res) => {
   const { transactionId } = req.body;
 
   try {
