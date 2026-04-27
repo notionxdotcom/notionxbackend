@@ -274,20 +274,21 @@ const getPendingDeposits = async (req, res) => {
 
     // 2. Fetch data: mapping 'description' to 'reference' for the frontend
     const depositsRes = await pool.query(
-      `SELECT 
-        l.ledger_id, 
-        l.amount, 
-        l.description AS reference, 
-        l.status, 
-        l.created_at, 
-        u.phone AS phone_number 
-       FROM ledger l
-       JOIN wallets w ON l.wallet_id = w.ledger_id
-       JOIN users u ON w.user_id = u.user_id
-       WHERE l.status IN ('pending', 'processing') 
-       AND l.entry_type = 'deposit'
-       ORDER BY l.created_at DESC
-       LIMIT $1 OFFSET $2`,
+   `SELECT 
+    l.ledger_id, 
+    l.amount, 
+    l.description AS reference, 
+    l.status, 
+    l.created_at, 
+    u.phone AS phone_number 
+   FROM ledger l
+   JOIN wallets w ON l.wallet_id = w.wallet_id  -- l.wallet_id links the transaction to the wallet
+   JOIN users u ON w.user_id = u.user_id
+   WHERE l.status IN ('pending', 'processing') 
+   AND l.entry_type = 'deposit'
+   ORDER BY l.created_at DESC
+   LIMIT $1 OFFSET $2`,
+  
       [limit, offset]
     );
 
