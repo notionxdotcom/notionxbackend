@@ -34,31 +34,42 @@ const { transactionId } = req.body;
  * 2. Admin approves deposit (Credits Wallet)
  */
 const approveDeposit = async (req, res) => {
-  const { depositId } = req.params;
+  const { depositId } = req.params; // This is the ledger_id
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
 
-    // Lock and get deposit details
+    // 1. Lock and get deposit details from LEDGER (not deposits table)
+    // We check for 'processing' OR 'pending' to be safe
     const depositRes = await client.query(
-      "SELECT * FROM deposits WHERE id = $1 AND status = 'processing' FOR UPDATE",
+      `SELECT l.*, w.user_id 
+       FROM ledger l 
+       JOIN wallets w ON l.wallet_id = w.wallet_id 
+       WHERE l.ledger_id = $1 
+       AND l.status IN ('pending', 'processing') 
+       AND l.entry_type = 'deposit' 
+       FOR UPDATE`,
       [depositId]
     );
 
-    if (depositRes.rows.length === 0) throw new Error("Deposit not found or already processed.");
+    if (depositRes.rows.length === 0) {
+      throw new Error("Deposit not found, already processed, or invalid status.");
+    }
 
-    const { user_id, amount, reference } = depositRes.rows[0];
-  const walletRes = await client.query(
-      "SELECT * FROM wallets WHERE  user_id = $1",
-      [user_id]
+    const { user_id, amount, description, wallet_id } = depositRes.rows[0];
+
+    // 2. Credit the User's wallet via walletService
+    // We use the description as the reference since we aliased it earlier
+    await walletService.creditWallet(wallet_id, amount, "deposit", "completed", description, client);
+
+    // 3. Update the specific ledger record to 'completed'
+    await client.query(
+      "UPDATE ledger SET status = 'completed', updated_at = NOW() WHERE ledger_id = $1",
+      [depositId]
     );
-    const wallet_id=walletRes.rows[0].wallet_id
-    
-    await walletService.creditWallet(wallet_id, amount,"deposit","completed", reference, client);
+
     // --- START REFERRAL COMMISSION LOGIC ---
-    
-    // 3. Check if this user was referred by someone
     const userRefRes = await client.query(
       "SELECT referred_by_id FROM users WHERE user_id = $1",
       [user_id]
@@ -67,11 +78,9 @@ const approveDeposit = async (req, res) => {
     const referrerId = userRefRes.rows[0]?.referred_by_id;
 
     if (referrerId) {
-      // Calculate 10% commission
       const commissionAmount = Number(amount) * 0.10;
 
       if (commissionAmount > 0) {
-        // Find referrer's wallet
         const referrerWalletRes = await client.query(
           "SELECT wallet_id FROM wallets WHERE user_id = $1",
           [referrerId]
@@ -79,45 +88,31 @@ const approveDeposit = async (req, res) => {
 
         if (referrerWalletRes.rows.length > 0) {
           const referrerWalletId = referrerWalletRes.rows[0].wallet_id;
-          const commReference = `COMM-${reference}`; // Link commission to original deposit ref
+          const commReference = `COMM-${description.substring(0, 20)}`; 
 
-          // Credit Referrer's wallet
           await walletService.creditWallet(
-            referrerWalletId, 
-            commissionAmount, 
+            referrerWalletId,
+            commissionAmount,
             "referral_commission",
-             "completed",
-            commReference, 
-           
+            "completed",
+            commReference,
             client
           );
-
-          // Optional: Add a specific ledger entry if creditWallet doesn't do it clearly
-          // await client.query(
-          //   "INSERT INTO ledger (user_id, amount, type, description) VALUES ($1, $2, 'credit', $3)",
-          //   [referrerId, commissionAmount, `Referral commission from ${user_id}`]
-          // );
         }
       }
     }
     // --- END REFERRAL COMMISSION LOGIC ---
-    
-    // Update deposit status
-    await client.query(
-      "UPDATE deposits SET status = 'approved', updated_at = NOW() WHERE id = $1", 
-      [depositId]
-    );
 
     await client.query("COMMIT");
     res.json({ status: "success", message: "Deposit approved and wallet funded." });
   } catch (err) {
     await client.query("ROLLBACK");
+    console.error("Approve Error:", err.message);
     res.status(500).json({ status: "error", message: err.message });
   } finally {
     client.release();
   }
 };
-
 /**
  * 3. User requests withdrawal (Debits Wallet immediately to Pending)
  */
