@@ -25,14 +25,21 @@ router.get("/withdrawals", getWithdrawals);
 // This creates the record BEFORE the user sees the account details
 router.post('/initiate-deposit', async (req, res) => {
   const { amount } = req.body;
+ const reference = "NX" + Math.random().toString(36).substring(2, 9).toUpperCase();
+  
   try {
     const result = await pool.query(
-      `INSERT INTO ledger (wallet_id, amount, entry_type, status, description) 
-       VALUES ((SELECT wallet_id FROM wallets WHERE user_id = $1), $2, 'deposit', 'pending', 'Awaiting bank transfer confirmation') 
+      `INSERT INTO ledger (wallet_id, amount, entry_type, status, description, reference) 
+       VALUES ((SELECT wallet_id FROM wallets WHERE user_id = $1), $2, 'deposit', 'pending', 'Awaiting bank transfer confirmation', $3) 
        RETURNING ledger_id`,
-      [req.user.user_id, amount]
+      [req.user.user_id, amount, reference]
     );
-    res.json({ transactionId: result.rows[0].ledger_id });
+    
+    // 2. Send both the ID and the Reference back to the frontend
+    res.json({ 
+      transactionId: result.rows[0].ledger_id,
+      reference: reference 
+    });
   } catch (err) {
     console.log(err);
     
