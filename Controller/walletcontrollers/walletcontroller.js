@@ -13,8 +13,7 @@ const { transactionId } = req.body;
   try {
     const result = await pool.query(
       `UPDATE ledger 
-       SET status = 'processing', 
-           description = 'User confirmed transfer. Awaiting verification.' 
+       SET status = 'processing'
        WHERE id = $1 AND status = 'pending'
        RETURNING *`,
       [transactionId]
