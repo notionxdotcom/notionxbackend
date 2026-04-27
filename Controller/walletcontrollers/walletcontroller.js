@@ -411,6 +411,43 @@ const getWithdrawals = async (req, res) => {
     res.status(500).json({ status: "error", message: "Database error." });
   }
 };
+export const rejectDeposit = async (req, res) => {
+  const { depositId } = req.params;
+
+  try {
+    // 1. Check if the transaction exists and is in a state that can be rejected
+    const txnCheck = await pool.query(
+      "SELECT status FROM ledger WHERE ledger_id = $1 AND entry_type = 'deposit'",
+      [depositId]
+    );
+
+    if (txnCheck.rows.length === 0) {
+      return res.status(404).json({ message: "Transaction not found" });
+    }
+
+    const currentStatus = txnCheck.rows[0].status;
+    if (currentStatus === 'completed' || currentStatus === 'rejected') {
+      return res.status(400).json({ 
+        message: `Cannot reject a transaction that is already ${currentStatus}` 
+      });
+    }
+
+    // 2. Update the status to 'rejected'
+    await pool.query(
+      "UPDATE ledger SET status = 'rejected' WHERE ledger_id = $1",
+      [depositId]
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Transaction rejected successfully"
+    });
+
+  } catch (err) {
+    console.error("Reject Error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 export { 
   requestDeposit, 
   approveDeposit, 
@@ -420,5 +457,6 @@ export {
   getPendingDeposits,
   addBankDetails,
   getMyBankDetails,
-  getWithdrawals
+  getWithdrawals,
+  rejectDeposit
 };

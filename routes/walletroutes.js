@@ -10,6 +10,7 @@ getMyBankDetails, getWithdrawals} from "../Controller/walletcontrollers/walletco
  ;
  import pool from "../configs/db.js";
 import getwalletbyid from "../Controller/walletcontrollers/getwalletdetails.js";
+import { rejectDeposit } from "../Controller/walletcontrollers/walletcontroller.js";
 const router=express.Router()
 router.get("/my-balance", getwalletbyid);
 router.post("/requestdeposit", requestDeposit);
@@ -22,6 +23,7 @@ router.post("/reject-withdrawal/:withdrawalId", rejectWithdrawal);
 router.post("/addbankdetails", addBankDetails);
 router.get("/my-bank-details", getMyBankDetails);
 router.get("/withdrawals", getWithdrawals);
+router.post("/reject-deposit/:depositId", rejectDeposit);
 // This creates the record BEFORE the user sees the account details
 router.post('/initiate-deposit', async (req, res) => {
   const { amount } = req.body;
