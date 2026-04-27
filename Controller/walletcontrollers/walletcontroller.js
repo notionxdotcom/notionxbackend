@@ -14,7 +14,7 @@ const { transactionId } = req.body;
     const result = await pool.query(
       `UPDATE ledger 
        SET status = 'processing'
-       WHERE id = $1 AND status = 'pending'
+       WHERE ledger_id = $1 AND status = 'pending'
        RETURNING *`,
       [transactionId]
     );
