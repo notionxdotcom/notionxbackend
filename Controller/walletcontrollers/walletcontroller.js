@@ -443,6 +443,105 @@ const getWithdrawals = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+ const getActiveDeposit = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+
+    const result = await pool.query(
+      `SELECT l.ledger_id, l.amount, l.description, l.status
+       FROM ledger l
+       JOIN wallets w ON l.wallet_id = w.wallet_id
+       WHERE w.user_id = $1 
+       AND l.status = 'pending' 
+       AND l.entry_type = 'deposit'
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (result.rows.length > 0) {
+      return res.json({ active: true, deposit: result.rows[0] });
+    }
+    
+    res.json({ active: false });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching active deposit" });
+  }
+};
+const cancelDeposit = async (req, res) => {
+  const { depositId } = req.params;
+  const userId = req.user.user_id;
+
+  // 1. Basic validation to prevent UUID syntax crashes
+  if (!depositId || depositId === 'undefined') {
+    return res.status(400).json({ message: "Invalid Transaction ID." });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 2. Fetch the transaction and lock the row
+    // We JOIN with wallets to ensure the transaction actually belongs to the user
+    const txnRes = await client.query(
+      `SELECT l.status, l.ledger_id 
+       FROM ledger l
+       JOIN wallets w ON l.wallet_id = w.wallet_id
+       WHERE l.ledger_id = $1 AND w.user_id = $2
+       FOR UPDATE`,
+      [depositId, userId]
+    );
+
+    if (txnRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Transaction not found." });
+    }
+
+    const { status } = txnRes.rows[0];
+
+    // 3. THE COMMITMENT WALL: Business Logic Checks
+    if (status === 'completed') {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Cannot cancel a completed transaction." });
+    }
+
+    if (status === 'rejected') {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "This transaction is already cancelled or rejected." });
+    }
+
+    if (status === 'processing') {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ 
+        message: "Confirmation in progress. You cannot cancel once you have clicked 'I Have Paid'." 
+      });
+    }
+
+    // 4. If all checks pass (Status is 'pending'), update to rejected
+    await client.query(
+      `UPDATE ledger 
+       SET status = 'rejected', 
+           description = description || ' (Cancelled by User)', 
+           updated_at = NOW() 
+       WHERE ledger_id = $1`,
+      [depositId]
+    );
+
+    await client.query("COMMIT");
+
+    res.status(200).json({
+      status: "success",
+      message: "Transaction cancelled successfully."
+    });
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Cancel Deposit Error:", err);
+    res.status(500).json({ message: "Internal server error. Please try again." });
+  } finally {
+    client.release();
+  }
+};
 export { 
   requestDeposit, 
   approveDeposit, 
@@ -453,5 +552,7 @@ export {
   addBankDetails,
   getMyBankDetails,
   getWithdrawals,
-  rejectDeposit
+  rejectDeposit,
+  getActiveDeposit,
+  cancelDeposit
 };

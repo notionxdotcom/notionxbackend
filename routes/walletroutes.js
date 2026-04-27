@@ -24,6 +24,7 @@ router.post("/addbankdetails", addBankDetails);
 router.get("/my-bank-details", getMyBankDetails);
 router.get("/withdrawals", getWithdrawals);
 router.post("/reject-deposit/:depositId", rejectDeposit);
+router.post("/cancel-deposit/:depositId", rejectDeposit);
 // This creates the record BEFORE the user sees the account details
 router.post('/initiate-deposit', async (req, res) => {
   const { amount } = req.body;
