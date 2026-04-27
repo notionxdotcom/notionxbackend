@@ -411,7 +411,7 @@ const getWithdrawals = async (req, res) => {
     res.status(500).json({ status: "error", message: "Database error." });
   }
 };
-export const rejectDeposit = async (req, res) => {
+ const rejectDeposit = async (req, res) => {
   const { depositId } = req.params;
 
   try {
