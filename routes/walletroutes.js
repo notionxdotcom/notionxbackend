@@ -8,6 +8,7 @@ import {
 getPendingDeposits,addBankDetails,
 getMyBankDetails, getWithdrawals} from "../Controller/walletcontrollers/walletcontroller.js";
  ;
+ import pool from "../configs/db.js";
 import getwalletbyid from "../Controller/walletcontrollers/getwalletdetails.js";
 const router=express.Router()
 router.get("/my-balance", getwalletbyid);
