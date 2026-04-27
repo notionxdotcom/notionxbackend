@@ -280,7 +280,7 @@ const getPendingDeposits = async (req, res) => {
     l.description AS reference, 
     l.status, 
     l.created_at, 
-    u.phone AS phone_number 
+    u.phone_number AS phone_number 
    FROM ledger l
    JOIN wallets w ON l.wallet_id = w.wallet_id  -- l.wallet_id links the transaction to the wallet
    JOIN users u ON w.user_id = u.user_id
