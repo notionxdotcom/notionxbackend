@@ -1,4 +1,5 @@
 import express from "express"
+import pool from "../configs/db.js";
 import {   
    requestDeposit, 
   approveDeposit, 
