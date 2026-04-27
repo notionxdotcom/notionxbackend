@@ -65,7 +65,7 @@ const approveDeposit = async (req, res) => {
 
     // 3. Update the specific ledger record to 'completed'
     await client.query(
-      "UPDATE ledger SET status = 'completed', updated_at = NOW() WHERE ledger_id = $1",
+      "UPDATE ledger SET status = 'completed' WHERE ledger_id = $1",
       [depositId]
     );
 
