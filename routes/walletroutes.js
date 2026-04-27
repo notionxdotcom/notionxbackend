@@ -34,7 +34,10 @@ router.post('/initiate-deposit', async (req, res) => {
     );
     res.json({ transactionId: result.rows[0].ledger_id });
   } catch (err) {
+    console.log(err);
+    
     res.status(500).send("Server Error");
+    
   }
 });
 
