@@ -7,18 +7,27 @@ const walletService = new WalletService();
  * 1. User requests a deposit (Status: Pending)
  */
 const requestDeposit = async (req, res) => {
-  const user_id = req.user.user_id;
-  const { amount, reference, } = req.body;
+  
+const { transactionId } = req.body; 
 
   try {
-    await pool.query(
-      "INSERT INTO deposits (user_id, amount, reference, status) VALUES ($1, $2, $3,  'pending')",
-      [user_id, amount, reference]
+    const result = await pool.query(
+      `UPDATE ledger 
+       SET status = 'processing', 
+           description = 'User confirmed transfer. Awaiting verification.' 
+       WHERE id = $1 AND status = 'pending'
+       RETURNING *`,
+      [transactionId]
     );
-    res.status(201).json({ status: "success", message: "Deposit submitted for approval." });
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Transaction not found." });
+    }
+
+    res.status(200).json({ status: "success", message: "Deposit submitted for approval." });
   } catch (err) {
-    console.error("Deposit Request Error:", err);
-    res.status(500).json({ status: "error", message: "Reference already exists or database error." });
+    console.error("Update Error:", err);
+    res.status(500).json({ status: "error", message: "Database error." });
   }
 };
 
