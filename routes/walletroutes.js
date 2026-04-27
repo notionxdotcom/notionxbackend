@@ -30,7 +30,7 @@ router.post('/initiate-deposit', async (req, res) => {
       `INSERT INTO ledger (wallet_id, amount, entry_type, status, description) 
        VALUES ((SELECT id FROM wallets WHERE user_id = $1), $2, 'deposit', 'pending', 'Awaiting bank transfer confirmation') 
        RETURNING id`,
-      [req.user.id, amount]
+      [req.user.user_id, amount]
     );
     res.json({ transactionId: result.rows[0].id });
   } catch (err) {
