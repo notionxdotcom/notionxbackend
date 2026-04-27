@@ -43,7 +43,7 @@ const approveDeposit = async (req, res) => {
 
     // Lock and get deposit details
     const depositRes = await client.query(
-      "SELECT * FROM deposits WHERE id = $1 AND status = 'pending' FOR UPDATE",
+      "SELECT * FROM deposits WHERE id = $1 AND status = 'processing' FOR UPDATE",
       [depositId]
     );
 
