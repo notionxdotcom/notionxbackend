@@ -576,6 +576,79 @@ const cancelDeposit = async (req, res) => {
     client.release();
   }
 };
+const getReferralChain = async (req, res) => {
+  const userId = req.user.user_id; // The logged-in user asking for their network
+
+  try {
+    // 1. Fetch LEVEL 1 (Direct Referrals)
+    const level1Res = await pool.query(
+      `SELECT user_id, phone_number, created_at 
+       FROM users 
+       WHERE referred_by_id = $1 
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+    const level1Users = level1Res.rows;
+
+    // If they haven't referred anyone directly, their whole chain is empty.
+    if (level1Users.length === 0) {
+      return res.status(200).json({
+        status: "success",
+        data: {
+          totalNetworkSize: 0,
+          level1: [],
+          level2: [],
+          level3: []
+        }
+      });
+    }
+
+    // Extract all the Level 1 user IDs so we can find who THEY referred
+    const level1Ids = level1Users.map(user => user.user_id);
+
+    // 2. Fetch LEVEL 2 (Users referred by Level 1)
+    // We use ANY($1::uuid[]) which is much faster and safer than a loop or dynamic IN clause
+    const level2Res = await pool.query(
+      `SELECT user_id, phone_number, referred_by_id, created_at 
+       FROM users 
+       WHERE referred_by_id = ANY($1::uuid[]) 
+       ORDER BY created_at DESC`,
+      [level1Ids]
+    );
+    const level2Users = level2Res.rows;
+
+    // Extract Level 2 IDs to find Level 3
+    const level2Ids = level2Users.map(user => user.user_id);
+
+    // 3. Fetch LEVEL 3 (Users referred by Level 2)
+    let level3Users = [];
+    if (level2Ids.length > 0) {
+      const level3Res = await pool.query(
+        `SELECT user_id, phone_number, referred_by_id, created_at 
+         FROM users 
+         WHERE referred_by_id = ANY($1::uuid[]) 
+         ORDER BY created_at DESC`,
+        [level2Ids]
+      );
+      level3Users = level3Res.rows;
+    }
+
+    // 4. Return the formatted data tree to the frontend
+    res.status(200).json({
+      status: "success",
+      data: {
+        totalNetworkSize: level1Users.length + level2Users.length + level3Users.length,
+        level1: level1Users,
+        level2: level2Users,
+        level3: level3Users
+      }
+    });
+
+  } catch (err) {
+    console.error("Referral Chain Error:", err);
+    res.status(500).json({ status: "error", message: "Failed to load referral network." });
+  }
+};
 export { 
   requestDeposit, 
   approveDeposit, 
@@ -588,5 +661,6 @@ export {
   getWithdrawals,
   rejectDeposit,
   getActiveDeposit,
-  cancelDeposit
+  cancelDeposit,
+  getReferralChain
 };
