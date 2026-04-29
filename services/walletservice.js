@@ -36,8 +36,8 @@ async creditWallet(wallet_id, amount, entry_type, status, reference, client, exi
         // If we already have a record (like a pending deposit), just mark it completed
         await client.query(
             `UPDATE ledger 
-             SET status = $1, 
-                 updated_at = NOW() 
+             SET status = $1 
+            
              WHERE ledger_id = $2`,
             [status, existingLedgerId]
         );
