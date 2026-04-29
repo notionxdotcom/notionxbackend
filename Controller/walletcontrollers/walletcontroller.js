@@ -244,7 +244,7 @@ const deductionAmount = Number(amount);
 
     // 3. Update the withdrawal status to completed
     await client.query(
-      "UPDATE withdrawals SET status = 'completed', updated_at = NOW() WHERE id = $1",
+      "UPDATE withdrawals SET status = 'completed' WHERE id = $1",
       [withdrawalId]
     );
 
