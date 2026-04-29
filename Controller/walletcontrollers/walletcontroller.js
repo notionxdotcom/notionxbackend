@@ -40,7 +40,7 @@ const approveDeposit = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // 1. Lock the deposit record to prevent "Double-Click" exploits
+    // 1. Lock the deposit record
     const depositRes = await client.query(
       `SELECT l.*, w.user_id 
        FROM ledger l 
@@ -48,7 +48,7 @@ const approveDeposit = async (req, res) => {
        WHERE l.ledger_id = $1 
        AND l.status IN ('pending', 'processing') 
        AND l.entry_type = 'deposit' 
-       FOR UPDATE`, // FOR UPDATE ensures no other server instance can process this row simultaneously
+       FOR UPDATE`, 
       [depositId]
     );
 
@@ -56,58 +56,49 @@ const approveDeposit = async (req, res) => {
       throw new Error("Deposit not found, already processed, or invalid status.");
     }
 
-    const { user_id, amount, description, wallet_id } = depositRes.rows[0];
+    const { user_id, amount, description, wallet_id, ledger_id } = depositRes.rows[0];
 
-    // SECURITY CHECK: Ensure deposit amount is valid and positive
     const depositAmount = Number(amount);
     if (isNaN(depositAmount) || depositAmount <= 0) {
       throw new Error("Invalid deposit amount detected.");
     }
 
-    // 2. Credit the User's wallet via walletService
-    await walletService.creditWallet(wallet_id, depositAmount, "deposit", "completed", description, client);
-
-    // 3. Update the specific ledger record to 'completed'
-    await client.query(
-      "UPDATE ledger SET status = 'completed' WHERE ledger_id = $1",
-      [depositId]
+    // 2. SMART CREDIT: Pass ledger_id as the 7th argument
+    // This tells the service: "Don't insert a new row, just update THIS ledger_id"
+    await walletService.creditWallet(
+      wallet_id, 
+      depositAmount, 
+      "deposit", 
+      "completed", 
+      description, 
+      client, 
+      ledger_id // <--- This prevents the double entry
     );
+
+    // --- STEP 3 REMOVED --- 
+    // You no longer need the manual UPDATE here because creditWallet handles it now!
 
     // --- START BULLETPROOF TIERED REFERRAL LOGIC ---
     const tiers = [
-      { level: 1, percent: 0.10, label: "Direct Referral" },
-      { level: 2, percent: 0.02, label: "Level 2 Indirect" },
-      { level: 3, percent: 0.01, label: "Level 3 Indirect" }
+      { level: 1, percent: 0.10 },
+      { level: 2, percent: 0.02 },
+      { level: 3, percent: 0.01 }
     ];
 
     let currentUserId = user_id;
-    
-    // ANTI-FRAUD: Track who has been paid to prevent Circular Loops (e.g., A -> B -> A)
-    // We start by adding the original depositor so they can NEVER earn a commission on their own money.
     const paidUsers = new Set([user_id]); 
 
     for (const tier of tiers) {
-      // Find the referrer using your exact column name
       const userRefRes = await client.query(
         "SELECT referred_by_id FROM users WHERE user_id = $1",
         [currentUserId]
       );
 
       const referrerId = userRefRes.rows[0]?.referred_by_id;
-
-      // If no referrer exists, break the loop and stop climbing the tree
-      if (!referrerId) break;
-
-      // ANTI-FRAUD: Check for infinite loops or self-referrals
-      if (paidUsers.has(referrerId)) {
-        console.warn(` Circular referral loop detected stopping at user: ${referrerId}`);
-        break; // Stop paying immediately
-      }
+      if (!referrerId || paidUsers.has(referrerId)) break;
       
-      paidUsers.add(referrerId); // Mark this user as processed
+      paidUsers.add(referrerId);
 
-      // ANTI-FRAUD: Strict Math to prevent floating point bugs (e.g. paying 10.000000001)
-      // Math.floor ensures we round down to the nearest kobo/cent. The house keeps the fraction.
       const rawCommission = depositAmount * tier.percent;
       const commissionAmount = Math.floor(rawCommission * 100) / 100;
 
@@ -121,27 +112,25 @@ const approveDeposit = async (req, res) => {
           const referrerWalletId = referrerWalletRes.rows[0].wallet_id;
           const commReference = `TIER${tier.level}-${description.substring(0, 15)}`; 
 
+          // For referrals, we pass null as the 7th argument so it creates a NEW log entry
           await walletService.creditWallet(
             referrerWalletId,
             commissionAmount,
             "referral_commission", 
             "completed",
             commReference,
-            client
+            client,
+            null 
           );
         }
       }
-
-      // Move up the tree for the next loop iteration
       currentUserId = referrerId;
     }
-    // --- END TIERED REFERRAL LOGIC ---
 
     await client.query("COMMIT");
-    res.json({ status: "success", message: "Deposit approved and tiered commissions paid." });
+    res.json({ status: "success", message: "Deposit approved and commissions paid." });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("Approve Error:", err.message);
     res.status(500).json({ status: "error", message: err.message });
   } finally {
     client.release();
