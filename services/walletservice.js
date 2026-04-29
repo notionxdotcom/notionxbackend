@@ -14,34 +14,34 @@ class WalletService {
     /**
      * Credits the wallet (used for Deposits and Refunds)
      */
-    async creditWallet(wallet_id, amount,entry_type,status, reference, client) {
-        // Lock the row to prevent race conditions
-        const wallet = await client.query(
-            "SELECT balance FROM wallets WHERE wallet_id = $1 FOR UPDATE",
-            [wallet_id]
-        );
+    // Inside WalletService.js -> creditWallet method
+async creditWallet(wallet_id, amount, entry_type, status, reference, client, skipLedger = false) {
+    const wallet = await client.query(
+        "SELECT balance FROM wallets WHERE wallet_id = $1 FOR UPDATE",
+        [wallet_id]
+    );
 
-        if (wallet.rows.length === 0) throw new Error("Wallet record not found.");
+    if (wallet.rows.length === 0) throw new Error("Wallet record not found.");
 
-        const currentBalance = parseFloat(wallet.rows[0].balance);
-        const newBalance = currentBalance + parseFloat(amount);
+    const currentBalance = parseFloat(wallet.rows[0].balance);
+    const newBalance = currentBalance + parseFloat(amount);
 
-        // Update Wallet
-        await client.query(
-            "UPDATE wallets SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE wallet_id = $2",
-            [newBalance, wallet_id]
-        );
+    await client.query(
+        "UPDATE wallets SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE wallet_id = $2",
+        [newBalance, wallet_id]
+    );
 
-        // Record in Ledger
+    // ONLY insert if skipLedger is false
+    if (!skipLedger) {
         await client.query(
             `INSERT INTO ledger (wallet_id, amount, entry_type, status, description)
              VALUES ($1, $2, $3, $4, $5)`,
-            [wallet_id, amount,entry_type,status, reference]
+            [wallet_id, amount, entry_type, status, reference]
         );
-
-        return newBalance;
     }
 
+    return newBalance;
+}
     /**
      * Debits the wallet (used for Withdrawals and Purchases)
      */
