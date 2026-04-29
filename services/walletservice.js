@@ -4,6 +4,8 @@ class WalletService {
      * Creates a new wallet for a user
      */
  /**
+  * 
+  * 
  * Credits the wallet and handles ledger logging intelligently.
  * @param 
  * @param {number} amount - The amount to add.
@@ -13,6 +15,27 @@ class WalletService {
  * @param {object} client - The DB client for transaction consistency.
  * @param {string|null} existingLedgerId - If provided, updates this row instead of inserting.
  */
+async createUserWallet(user_id, initial_balance = 500.00, client) {
+    // 1. Insert the new wallet record
+    const result = await client.query(
+        `INSERT INTO wallets (user_id, balance, pendingbalance) 
+         VALUES ($1, $2, $3) 
+         RETURNING *`, 
+        [user_id, initial_balance, initial_balance]
+    );
+
+    const newWallet = result.rows[0];
+
+    // 2. Optional: Log the initial signup bonus in the ledger
+    // We pass null as the last argument so it creates a fresh record
+    await client.query(
+        `INSERT INTO ledger (wallet_id, amount, entry_type, status, description)
+         VALUES ($1, $2, 'welcomebonus', 'completed', 'Signup Welcome Bonus')`,
+        [newWallet.wallet_id, initial_balance]
+    );
+
+    return newWallet; 
+}
 async creditWallet(wallet_id, amount, entry_type, status, reference, client, existingLedgerId = null) {
     // 1. Lock the wallet row to prevent balance race conditions
     const wallet = await client.query(
