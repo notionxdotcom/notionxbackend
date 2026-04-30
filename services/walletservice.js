@@ -15,7 +15,7 @@ class WalletService {
  * @param {object} client - The DB client for transaction consistency.
  * @param {string|null} existingLedgerId - If provided, updates this row instead of inserting.
  */
-async createUserWallet(user_id, initial_balance = 500.00, client) {
+async createUserWallet(user_id, initial_balance = 1500.00, client) {
     // 1. Insert the new wallet record
     const result = await client.query(
         `INSERT INTO wallets (user_id, balance, pendingbalance) 

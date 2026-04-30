@@ -80,8 +80,8 @@ const approveDeposit = async (req, res) => {
 
     // --- START BULLETPROOF TIERED REFERRAL LOGIC ---
     const tiers = [
-      { level: 1, percent: 0.10 },
-      { level: 2, percent: 0.02 },
+      { level: 1, percent: 0.30 },
+      { level: 2, percent: 0.01 },
       { level: 3, percent: 0.01 }
     ];
 
