@@ -17,7 +17,7 @@ const app = express();
 
 // 1. Precise CORS Configuration
 const corsOptions = {
-  origin: 'https://notionx-x.vercel.app', 
+  origin: 'https://gmt-frontend-9rpo.vercel.app/', 
   credentials: true, // Required for cookies
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
