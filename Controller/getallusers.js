@@ -51,6 +51,8 @@ const getAllUsers = async (req, res) => {
     });
   } catch (err) {
     console.error("Pagination Error:", err.message);
+    console.log(err);
+    
     res.status(500).json({ status: "error", message: err.message });
   }
 };
