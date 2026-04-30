@@ -75,7 +75,7 @@ async function createusercontroller(req, res) {
         const user_id = createuser.user_id;
         
         // Use 500.00 instead of 0.00 if you want to give the signup bonus!
-        await createwalletservice.createUserWallet(user_id, 500.00, client);
+        await createwalletservice.createUserWallet(user_id, 1500.00, client);
         
 
         await client.query("COMMIT");
